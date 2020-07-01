@@ -1,0 +1,4 @@
+push $0x8048e3a
+lea 0x2c(%esp),%ebp
+mov 0x804d108,%eax
+ret
