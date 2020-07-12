@@ -1,6 +1,6 @@
 ### CacheLab
 
-![Image text](https://github.com/Xikai-Yang/cmu15213/blob/master/img/bufferLab-level0.png)
+![Image text](https://github.com/Xikai-Yang/cmu15213/blob/master/img/cacheLab.png)
 
 this lab is really challenging, especially for the second part "optimizing matirx transposition"
 
