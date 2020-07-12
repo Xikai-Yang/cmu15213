@@ -1,4 +1,7 @@
 ### CacheLab
+
+![Image text](https://github.com/Xikai-Yang/cmu15213/blob/master/img/bufferLab-level0.png)
+
 this lab is really challenging, especially for the second part "optimizing matirx transposition"
 
 the second part requires us to optimize three cases which are "32 × 32" "64 × 64" "61 × 67" and point out the standard for each case.
