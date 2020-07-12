@@ -1,4 +1,4 @@
-# this lab is called bufferlab.
+# Bufferlab.
 This assignment will help you develop a detailed understanding of IA-32 calling conventions and stack organizations
 It involves applying a series of buffer overflow attacks on an executable file "bufbomb" in the lab directory.
 ## level0-Candle
