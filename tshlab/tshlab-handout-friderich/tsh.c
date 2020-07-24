@@ -1,7 +1,7 @@
 /* 
  * tsh - A tiny shell program with job control
  * 
- * Author : Xikai Yang
+ * <Put your name and login ID here>
  */
 #include <assert.h>
 #include <stdio.h>
@@ -181,8 +181,6 @@ main(int argc, char **argv)
     exit(0); /* control never reaches here */
 }
 
-void implementBuiltIns(struct cmdline_tokens *tok);
-void executePrograms(struct cmdline_tokens *tok, int bg, char *cmdline);
 /* 
  * eval - Evaluate the command line that the user has just typed in
  * 
@@ -207,122 +205,10 @@ eval(char *cmdline)
         return;
     if (tok.argv[0] == NULL) /* ignore empty lines */
         return;
-    if (tok.builtins != BUILTIN_NONE) {
-        implementBuiltIns(&tok);
-        return;
-    }
-    executePrograms(&tok, bg, cmdline);
 
     return;
 }
-//================== My Helper functions =======================
 
-
-void Execve(const char *pathname, char *const argv[],char *const envp[]) {
-    if (execve(pathname, argv, envp) < 0) {
-        unix_error("Execve error\n");
-    }
-}
-
-pid_t Fork() {
-    pid_t pid;
-    if ((pid = fork()) < 0) {
-        unix_error("Fork error\n");
-    }
-    return pid;
-}
-
-
-pid_t Waitpid(pid_t pid, int *iptr, int options) 
-{
-    pid_t retpid;
-
-    if ((retpid  = waitpid(pid, iptr, options)) < 0) 
-	unix_error("Waitpid error");
-    return(retpid);
-}
-
-pid_t Wait(int *wstatus) {
-    pid_t pid;
-    if ((pid = wait(wstatus)) < 0) {
-        unix_error("Wait error\n");
-    }
-    return pid;
-
-}
-
-void Sigprocmask(int how, const sigset_t *set, sigset_t *oldset) {
-    if (sigprocmask(how, set, oldset) < 0) {
-        unix_error("Sigprocmask error\n");
-    }
-}
-void Sigemptyset(sigset_t *set) {
-    if (sigemptyset(set) < 0) {
-        unix_error("Sigemptyset error\n");
-    }
-}
-
-void Sigfillset(sigset_t *set) {
-    if (sigfillset(set) < 0) {
-        unix_error("Sigfillset error\n");
-    }
-}
-
-void Sigaddset(sigset_t *set, int signum) {
-    if (sigaddset(set, signum) < 0) {
-        unix_error("Sigaddset error\n");
-    }
-}
-
-int Sigsuspend(const sigset_t *set)
-{
-    int rc = sigsuspend(set); /* always returns -1 */
-    if (errno != EINTR)
-        unix_error("Sigsuspend error");
-    return rc;
-}
-
-//============== End of My Helper functions ======================
-
-void implementBuiltIns(struct cmdline_tokens *tok) {
-    switch (tok->builtins) {
-        // TODO
-        case BUILTIN_NONE : return;
-        case BUILTIN_QUIT : exit(0); break;
-        case BUILTIN_JOBS : listjobs(job_list, 1); break;
-        case BUILTIN_BG : return;
-        case BUILTIN_FG : return;
-    }
-}
-
-void executePrograms(struct cmdline_tokens *tok, int bg, char *cmdline) {
-    pid_t pid;
-    sigset_t mask_all, prev_all, mask_one;
-    Sigemptyset(&prev_all);
-    Sigfillset(&mask_all);
-    Sigaddset(&mask_one, SIGCHLD);
-
-    Sigprocmask(SIG_BLOCK, &mask_one, &prev_all);
-
-    if ((pid = Fork()) == 0) {
-        Sigprocmask(SIG_SETMASK, &prev_all, NULL); 
-        Execve(tok->argv[0], tok->argv, environ);
-    }
-
-    Sigprocmask(SIG_BLOCK, &mask_all, NULL);
-    addjob(job_list, pid, bg + 1, cmdline);    
-    if (bg == 0) {
-        Sigsuspend(&prev_all);
-    }
-    if (bg == 1) {
-        struct job_t *job = getjobpid(job_list, pid);
-        printf("[%d] (%d) %s\n", job->jid, pid, cmdline);
-        fflush(stdout);
-    }
-
-    Sigprocmask(SIG_SETMASK, &prev_all, NULL);
-
-}
 /* 
  * parseline - Parse the command line and build the argv array.
  * 
@@ -486,18 +372,6 @@ parseline(const char *cmdline, struct cmdline_tokens *tok)
 void 
 sigchld_handler(int sig) 
 {
-    int olderrno = errno;
-    pid_t pid;
-    sigset_t mask_all, prev_all;
-    Sigemptyset(&prev_all);
-    Sigfillset(&mask_all);
-    while ((pid = Waitpid(-1, NULL, 0)) > 0) {
-        Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
-        
-        deletejob(job_list, pid);
-        Sigprocmask(SIG_SETMASK, &prev_all, NULL);
-    }
-    errno = olderrno;
     return;
 }
 
@@ -608,7 +482,7 @@ int
 deletejob(struct job_t *job_list, pid_t pid) 
 {
     int i;
-    
+
     if (pid < 1)
         return 0;
 
