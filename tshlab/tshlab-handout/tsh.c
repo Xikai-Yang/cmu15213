@@ -236,20 +236,25 @@ pid_t Fork() {
 pid_t Waitpid(pid_t pid, int *iptr, int options) 
 {
     pid_t retpid;
+    retpid = waitpid(pid, iptr, options);
+    if (retpid < 0 && errno != ECHILD) {
+        // here we have really serious problems!
+        unix_error("Waitpid error\n");
+    }
 
-    if ((retpid  = waitpid(pid, iptr, options)) < 0) 
-	unix_error("Waitpid error");
     return(retpid);
 }
 
-pid_t Wait(int *wstatus) {
+pid_t Wait(int *status) 
+{
     pid_t pid;
-    if ((pid = wait(wstatus)) < 0) {
-        unix_error("Wait error\n");
-    }
-    return pid;
 
+    if ((pid  = wait(status)) < 0)
+    // here we have really serious problems!
+	unix_error("Wait error");
+    return pid;
 }
+
 
 void Sigprocmask(int how, const sigset_t *set, sigset_t *oldset) {
     if (sigprocmask(how, set, oldset) < 0) {
@@ -298,7 +303,7 @@ void implementBuiltIns(struct cmdline_tokens *tok) {
 void executePrograms(struct cmdline_tokens *tok, int bg, char *cmdline) {
     pid_t pid;
     sigset_t mask_all, prev_all, mask_one;
-    Sigemptyset(&prev_all);
+
     Sigfillset(&mask_all);
     Sigaddset(&mask_one, SIGCHLD);
 
@@ -310,16 +315,14 @@ void executePrograms(struct cmdline_tokens *tok, int bg, char *cmdline) {
     }
 
     Sigprocmask(SIG_BLOCK, &mask_all, NULL);
-    addjob(job_list, pid, bg + 1, cmdline);    
+    addjob(job_list, pid, (bg == 0)? FG:BG, cmdline);    
     if (bg == 0) {
         Sigsuspend(&prev_all);
     }
     if (bg == 1) {
         struct job_t *job = getjobpid(job_list, pid);
-        printf("[%d] (%d) %s\n", job->jid, pid, cmdline);
-        fflush(stdout);
+        printf("[%d] (%d) %s\n", job->jid, job->pid, cmdline);
     }
-
     Sigprocmask(SIG_SETMASK, &prev_all, NULL);
 
 }
@@ -493,9 +496,12 @@ sigchld_handler(int sig)
     Sigfillset(&mask_all);
     while ((pid = Waitpid(-1, NULL, 0)) > 0) {
         Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
-        
         deletejob(job_list, pid);
         Sigprocmask(SIG_SETMASK, &prev_all, NULL);
+    }
+
+    if (errno != ECHILD) {
+        sio_error("waitpid error\n");
     }
     errno = olderrno;
     return;
