@@ -287,6 +287,13 @@ int Sigsuspend(const sigset_t *set)
     return rc;
 }
 
+void Kill(pid_t pid, int signum) 
+{
+    int rc;
+
+    if ((rc = kill(pid, signum)) < 0)
+	unix_error("Kill error");
+}
 //============== End of My Helper functions ======================
 
 void implementBuiltIns(struct cmdline_tokens *tok) {
@@ -310,6 +317,7 @@ void executePrograms(struct cmdline_tokens *tok, int bg, char *cmdline) {
     Sigprocmask(SIG_BLOCK, &mask_one, &prev_all);
 
     if ((pid = Fork()) == 0) {
+        
         Sigprocmask(SIG_SETMASK, &prev_all, NULL); 
         Execve(tok->argv[0], tok->argv, environ);
     }
@@ -318,8 +326,10 @@ void executePrograms(struct cmdline_tokens *tok, int bg, char *cmdline) {
     addjob(job_list, pid, (bg == 0)? FG:BG, cmdline);    
     if (bg == 0) {
         Sigsuspend(&prev_all);
+        
     }
     if (bg == 1) {
+
         struct job_t *job = getjobpid(job_list, pid);
         printf("[%d] (%d) %s\n", job->jid, job->pid, cmdline);
     }
@@ -486,6 +496,8 @@ parseline(const char *cmdline, struct cmdline_tokens *tok)
  *     handler reaps all available zombie children, but doesn't wait 
  *     for any other currently running children to terminate.  
  */
+
+
 void 
 sigchld_handler(int sig) 
 {
@@ -494,18 +506,31 @@ sigchld_handler(int sig)
     sigset_t mask_all, prev_all;
     Sigemptyset(&prev_all);
     Sigfillset(&mask_all);
-    while ((pid = Waitpid(-1, NULL, 0)) > 0) {
+    int status;
+    while ((pid = Waitpid(-1, &status, WNOHANG)) > 0) {
+        
         Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
         deletejob(job_list, pid);
         Sigprocmask(SIG_SETMASK, &prev_all, NULL);
     }
-
-    if (errno != ECHILD) {
+    
+    
+    if (pid == 0 && errno == 0) {
+        errno = olderrno;
+        return;
+    }
+    
+    if (pid < 0 && errno != ECHILD) {
         sio_error("waitpid error\n");
     }
+    
     errno = olderrno;
     return;
 }
+
+ 
+
+
 
 /* 
  * sigint_handler - The kernel sends a SIGINT to the shell whenver the
@@ -515,6 +540,20 @@ sigchld_handler(int sig)
 void 
 sigint_handler(int sig) 
 {
+    // pid_t pid = fgpid(job_list);
+    pid_t pid = fgpid(job_list);
+    int jid = pid2jid(pid);
+    
+    
+    if (pid > 0) {
+        sio_puts("Job [");
+        sio_putl(jid);
+        sio_puts("] (");
+        sio_putl(pid);
+        sio_puts(") terminated by signal 2\n");
+        Kill(pid, SIGKILL);
+    }
+    
     return;
 }
 
