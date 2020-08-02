@@ -57,7 +57,7 @@ team_t team = {
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)))
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE((char *)(bp) - (SIZE_T_SIZE*2)))
 #define PUT(p, val) ((*(size_t *)(p)) = (val))
-
+#define FACTOR 2
 
 
 /* 
@@ -115,7 +115,64 @@ void *extend_heap(size_t alloc_size)
     coalesce(old_brk + SIZE_T_SIZE);
     return old_brk;
 }
+void *best_fit(size_t alloc_size)
+{
+    char * ptr = mem_heap_lo() + SIZE_T_SIZE * 2;
+    void *physical_boundary = mem_heap_hi() + 1 - SIZE_T_SIZE * 2; // (brk - 1) + 1
+    int delta = (char *)(physical_boundary) - ptr;
+    if (delta == 0) {
+        void * old_brk = extend_heap(alloc_size * FACTOR);
+        return old_brk;
+    }
+    size_t min_size = 0x7fffffff;
+    void * min_ptr = NULL;
+    while (1) {
+        int size = GET_SIZE(ptr);
+        int alloc = GET_ALLOC(ptr);
+        if (alloc == 1) {
+            if (ptr == physical_boundary) {
+                if (min_ptr != NULL) {
+                    return min_ptr;
+                } else {
+                    extend_heap(alloc_size * FACTOR);
+                    return ptr;
+                }
+            }
 
+            ptr += size;
+            continue;
+        }
+
+        if (alloc == 0) {
+            if (size == alloc_size) {
+                return (void *)ptr;
+            }
+            if (size > alloc_size) {
+                if (min_size > size) {
+                    min_ptr = ptr;
+                    min_size = size;
+                }
+                ptr += size;
+            }
+            else {
+                void *footer = ptr + GET_SIZE(ptr) - SIZE_T_SIZE;
+                if (footer + SIZE_T_SIZE == physical_boundary) {
+                    
+                    if (min_ptr != NULL) {
+                        return min_ptr;
+                    }
+                    
+                    int delta_size = (ptr + alloc_size) - (char *)(physical_boundary);
+                    extend_heap(delta_size * FACTOR);
+                    return ptr;
+                }
+                ptr += size;
+
+            }
+        }
+
+    }
+}
 
 void *first_fit(size_t alloc_size)
 {
@@ -124,7 +181,7 @@ void *first_fit(size_t alloc_size)
     void *physical_boundary = mem_heap_hi() + 1 - SIZE_T_SIZE * 2; // (brk - 1) + 1
     int delta = (char *)(physical_boundary) - ptr;
     if (delta == 0) {
-        void * old_brk = extend_heap(alloc_size * 2);
+        void * old_brk = extend_heap(alloc_size * FACTOR);
         return old_brk;
     }
     while (1)
@@ -134,7 +191,8 @@ void *first_fit(size_t alloc_size)
         int alloc = GET_ALLOC(ptr);
         if (alloc == 1) {
             if (ptr == physical_boundary) {
-                extend_heap(alloc_size * 2);
+                // prevent ptr is the last sentinel node
+                extend_heap(alloc_size * FACTOR);
                 return ptr;
             }
             ptr += size;
@@ -146,9 +204,9 @@ void *first_fit(size_t alloc_size)
             } else {
                 void *footer = ptr + GET_SIZE(ptr) - SIZE_T_SIZE;
                 if (footer + SIZE_T_SIZE == physical_boundary) {
+                    // last node
                     int delta_size = (ptr + alloc_size) - (char *)(physical_boundary);
-                    extend_heap(delta_size * 2);
-                    
+                    extend_heap(delta_size * FACTOR);
                     return ptr;
                 }
                 //printf("ptr is %p and size is %d\n", ptr, size);
@@ -163,7 +221,7 @@ void *first_fit(size_t alloc_size)
 void *find_fit(size_t alloc_size) 
 {
     void * ptr = first_fit(alloc_size);
-    //void * ptr = second_fit(alloc_size);
+    //void * ptr = best_fit(alloc_size);
     if (ptr == NULL) {
         printf("stack overflow\n");
         exit(1);
