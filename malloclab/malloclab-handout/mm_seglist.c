@@ -507,7 +507,7 @@ void mm_free(void *ptr)
 /*
  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
  */
-void *mm_realloc(void *ptr, size_t size)
+void *mm_realloc_ori(void *ptr, size_t size)
 {
     
     if (ptr == NULL) {
@@ -536,6 +536,152 @@ void *mm_realloc(void *ptr, size_t size)
     mm_free(oldptr);
     return newptr;
 
+}
+
+void *recoalesce(void *ptr, size_t size)
+{
+        void *header = HDRP(ptr);
+    void *footer = FTRP(ptr);
+    
+
+    void *prev_footer = ptr - WSIZE * 2;
+    int prev_alloc = GET_ALLOC(prev_footer);
+
+    void *next_header = footer + WSIZE;
+    int next_alloc = GET_ALLOC(next_header);
+    if (next_alloc && prev_alloc) {
+        return NULL;
+    }
+    if (next_alloc && !prev_alloc) {
+        int prev_size = GET_SIZE(prev_footer);
+        int cur_size = GET_SIZE(header);
+        int new_size = prev_size + cur_size;
+        void *prev_header = prev_footer - prev_size + WSIZE;
+        if (new_size < size) {
+            return NULL;
+        } else {
+            // splitting
+            int delta_size = new_size - size;
+            delete_list(prev_header + WSIZE);
+            memmove(prev_header, header, cur_size);
+            if (delta_size >= MINIMUM_SIZE) {
+              PUT(prev_header, PACK(size, 1));
+              PUT(prev_header + size - WSIZE, PACK(size, 1));
+              PUT(prev_header + size, PACK(delta_size, 0));
+              PUT(footer, PACK(delta_size, 0));
+              append_list(prev_header + size + WSIZE);
+
+            } else {
+              PUT(prev_header, PACK(new_size, 1));
+              PUT(footer, PACK(new_size, 1));
+            }
+            
+
+            return prev_header;
+        }
+    }
+
+    if (!next_alloc && prev_alloc) {
+        int new_size = GET_SIZE(header) + GET_SIZE(next_header);
+        if (new_size < size) {
+            return NULL;
+        } else {
+            int delta_size = new_size - size;
+            void *next_footer = next_header + GET_SIZE(next_header) - WSIZE;
+            delete_list(next_header + WSIZE);
+
+            if (delta_size >= MINIMUM_SIZE) {
+              PUT(header, PACK(size, 1));
+              PUT(header + size - WSIZE, PACK(size, 1));
+              PUT(header + size, PACK(delta_size, 0));
+              PUT(next_footer, PACK(delta_size, 0));
+              append_list(header + size + WSIZE);
+
+            } else {
+              PUT(header, PACK(new_size, 1));
+              PUT(next_footer, PACK(new_size, 1));
+
+            }
+            
+            return header;
+        }
+    }
+
+    if (!next_alloc && !prev_alloc) {
+        int new_size = GET_SIZE(header) + GET_SIZE(next_header) + GET_SIZE(prev_footer);
+        void *prev_header = prev_footer - GET_SIZE(prev_footer) + WSIZE;
+        void *next_footer = next_header + GET_SIZE(next_header) - WSIZE;
+        if (new_size < size) {
+            return NULL;
+        } else {
+            int delta_size = new_size - size;
+            int cur_size = GET_SIZE(header);
+            delete_list(next_header + WSIZE);
+            delete_list(prev_header + WSIZE);
+            memmove(prev_header, header, cur_size);
+         
+            if (delta_size >= MINIMUM_SIZE) {
+              PUT(prev_header, PACK(size, 1));
+              PUT(prev_header + size - WSIZE, PACK(size, 1));
+              PUT(prev_header + size, PACK(delta_size, 0));
+              PUT(next_footer, PACK(delta_size, 0));
+              append_list(prev_header + size + WSIZE);
+
+            } else {
+              PUT(prev_header, PACK(new_size, 1));
+              PUT(next_footer, PACK(new_size, 1));
+            }
+            
+            
+            return prev_header;
+        }
+
+    }
+    return NULL;
+}
+void *mm_realloc(void *ptr, size_t size)
+{
+    // return base pointer which is the same as malloc
+    // printf("realloc size is %d\n", size);
+    if (ptr == NULL) {
+        return mm_malloc(size);
+    }
+    if (size == 0) {
+        mm_free(ptr);
+        return NULL;
+    }
+    int needed_size = size;
+    if (size <= MINIMUM_SIZE) {
+        needed_size = MINIMUM_SIZE;
+    } else {
+        //size = DSIZE * ((size + DSIZE + (DSIZE - 1))/DSIZE);
+        needed_size = ALIGN(size + DSIZE);
+    }
+
+    int oldsize = GET_SIZE(HDRP(ptr));
+    if (oldsize == needed_size) {
+        return ptr;
+    }
+    if (oldsize < needed_size) {
+        void *new_ptr = recoalesce(ptr, needed_size);
+        if (new_ptr != NULL) {
+            return new_ptr + WSIZE;
+        } else {
+
+            new_ptr = mm_malloc(size);
+            memcpy(new_ptr, ptr, oldsize - WSIZE);
+            mm_free(ptr);
+            return new_ptr;
+        }
+    }
+
+    if (oldsize > needed_size) {
+        void *new_ptr = mm_malloc(size);
+        memcpy(new_ptr, ptr, size);
+        mm_free(ptr);
+        return new_ptr;
+    }
+    return NULL;
 }
 
 
