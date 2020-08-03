@@ -9,6 +9,12 @@
  * NOTE TO STUDENTS: Replace this header comment with your own header
  * comment that gives a high level description of your solution.
  */
+/*
+ * this version is implemented using segregated list
+ * and best-fit method
+ * but the util is still the same
+ * maybe you have to change the realloc method
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
