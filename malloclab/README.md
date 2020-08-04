@@ -12,3 +12,11 @@ And I've adopted LIFO policy to insert and delete the free block from the lists
 
 Besides, I've also rewritten the "realloc" function to improve its performance
 
+During the process, I've found two github repos really powerful which can achieve 92 and 98 respectively without causing any bugs
+
+Please feel free to check them out:
+
+https://github.com/kayoyin/malloclab/blob/master/mm_92.c
+
+https://github.com/mightydeveloper/Malloc-Lab/blob/master/mm.c
+
