@@ -1050,11 +1050,8 @@ int Open_clientfd(char *hostname, char *port)
 {
     int rc;
 
-    if ((rc = open_clientfd(hostname, port)) < 0) {
-        unix_error("Open_clientfd error");
-        //return 0;
-    } 
-	
+    if ((rc = open_clientfd(hostname, port)) < 0) 
+	unix_error("Open_clientfd error");
     return rc;
 }
 
