@@ -17,7 +17,10 @@ Task 3: Caching web objects so that our proxy can perform better
 configure our firefox browser
 ![Image text](https://github.com/Xikai-Yang/cmu15213/blob/master/img/brower.png)
 
-browse some webpages (only for HTTP request, not for HTTPS request)
+Browse some webpages (only for HTTP request, not for HTTPS request)
+
+And when you see the pages come out, it will be really exciting for a programmer!
+
 ![Image text](https://github.com/Xikai-Yang/cmu15213/blob/master/img/baidu.png)
 ![Image text](https://github.com/Xikai-Yang/cmu15213/blob/master/img/cufe.png)
 ![Image text](https://github.com/Xikai-Yang/cmu15213/blob/master/img/uibe.png)
