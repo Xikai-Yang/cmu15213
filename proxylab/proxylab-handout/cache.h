@@ -17,6 +17,7 @@ struct cache
 void init(void);
 int reader(char *request, char *dest);
 void writer(char *request, char *content, int content_length);
+void deinit_caches();
 
 
 

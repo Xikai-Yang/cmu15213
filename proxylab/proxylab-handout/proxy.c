@@ -127,15 +127,27 @@ void parse_request(int fd, char *host, char *port, char *request)
 
 void *thread(void *vargp);
 
+int Accept_robust(int s, struct sockaddr *addr, socklen_t *addrlen) 
+{
+    int rc;
+
+    while ((rc = accept(s, addr, addrlen)) < 0) {
+        printf("Accept error\n");
+    }
+    return rc;
+}
+void sigpipe_handler(int sig)
+{
+    return;
+}
 
 int main(int argc, char **argv)
 {
-    
+    Signal(SIGPIPE, sigpipe_handler);
     int listenfd;
-    //int connfd;
-    //int proxy_clientfd;
+
     char hostname[MAXLINE], port[MAXLINE];
-    //char request[MAXLINE];
+
     socklen_t clientlen;
     struct sockaddr_storage clientaddr;
 
@@ -147,22 +159,34 @@ int main(int argc, char **argv)
 
     listenfd = Open_listenfd(argv[1]);  // have to deal with errors!
     init();
+    
     while (1) {
         pthread_t tid;
         clientlen = sizeof(clientaddr);
         int *connfdp = Malloc(sizeof(int));
-	    *connfdp = Accept(listenfd, (SA *)&clientaddr, &clientlen); //line:netp:tiny:accept
+	    *connfdp = Accept_robust(listenfd, (SA *)&clientaddr, &clientlen); //line:netp:tiny:accept
         Getnameinfo((SA *) &clientaddr, clientlen, hostname, MAXLINE, 
                     port, MAXLINE, 0);
         printf("Accepted connection from (%s, %s)\n", hostname, port);
         Pthread_create(&tid, NULL, thread, (void *)connfdp);
     }
+    deinit_caches();
 
     return 0;
 }
+void rio_writen_robust(int fd, void *usrbuf, size_t n)
+{
+    int cnt = 0;
+    while ((cnt = cnt + rio_writen(fd, usrbuf, n)) < n) {
+
+    }
+    
+}
+
 
 void *thread(void *vargp)
 {
+    printf("created thread\n");
     pthread_detach(pthread_self());
     int connfd = *(int *)(vargp);
     Free((int *)vargp);
@@ -172,38 +196,63 @@ void *thread(void *vargp)
 
     parse_request(connfd, hostname, port, request);
     // check if cached
+    
     char cache_buffer[MAX_OBJECT_SIZE];
-    printf("READER BEGINS!\n");
+
     int cache_length = reader(request, cache_buffer);
-    printf("READER ENDS!\n");
+
     if (cache_length > 0) {
+        
         Rio_writen(connfd, cache_buffer, cache_length);
         return NULL;
     }
     
+    
+    
+    
+    // proxy_clientfd = Open_clientfd(hostname,port);
+    
+    if ((proxy_clientfd = open_clientfd(hostname, port)) < 0) {  
+        return NULL;
+    }
+    
+    
 
-    proxy_clientfd = Open_clientfd(hostname, port);
-        
+
     int transfer_length = strstr(request, "\r\n\r\n") - request + 4;
-    // printf("length is %d\n", transfer_length);
-    Rio_writen(proxy_clientfd, request, transfer_length);
+    //Rio_writen(proxy_clientfd, request, transfer_length);
+    rio_writen_robust(proxy_clientfd, request, transfer_length);
+ 
     char read_buffer[MAXLINE];
     rio_t read_rio;
     Rio_readinitb(&read_rio, proxy_clientfd);
     int content_length;
     char content[MAX_OBJECT_SIZE];
     int n;
+
     while ((n = Rio_readlineb(&read_rio, read_buffer, MAXLINE)) > 0) {
         content_length += n;
         if (content_length < MAX_OBJECT_SIZE) {
             strcat(content, read_buffer);
         }
-        Rio_writen(connfd, read_buffer, n);
+        //Rio_writen(connfd, read_buffer, n);
+        rio_writen_robust(connfd, read_buffer, n);
     }
+    
+    
+    
     if (content_length < MAX_OBJECT_SIZE) {
         // write cache
         writer(request, content, content_length);
     }
+    
+    
+    
+    
+    
+    
+    
+    
     Close(connfd);
     Close(proxy_clientfd);
     return NULL;

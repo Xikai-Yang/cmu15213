@@ -57,6 +57,8 @@ void update_frequency(struct cache* free_cache)
 
 int read_cache(char *request, char *dest)
 {
+    
+
     int request_L = request_length(request);
     for (size_t i = 0; i < CACHE_NUM; i++)
     {
@@ -64,11 +66,12 @@ int read_cache(char *request, char *dest)
         if (cache_ptr->valid == 1) {
             int cmp = memcmp(cache_ptr->request, request, request_L);
             if (cmp == 0) {
-                memcpy(dest, cache_ptr->buffer, cache_ptr->content_length);
+                memcpy((void *)dest, (void *)cache_ptr->buffer, cache_ptr->content_length);
                 return cache_ptr->content_length;
             }
         }
     }
+
     return -1;
 }
 
@@ -86,7 +89,7 @@ struct cache* LRU_cache()
             min_cache = cache_ptr;
         }
     }
-    free_cache(min_cache);
+    //free_cache(min_cache);
     return min_cache;
     
 }
@@ -94,33 +97,46 @@ struct cache* LRU_cache()
 void write_cache(char *request, char *content, int content_length)
 {
     // write cache
-    struct cache* free_cache = NULL;
+
+    struct cache* empty_cache = NULL;
     for (size_t i = 0; i < CACHE_NUM; i++)
     {
         /* code */
         struct cache* cache_ptr = &cache_array[i];
         if (cache_ptr->valid == 0) {
-            free_cache = cache_ptr;
+            empty_cache = cache_ptr;
             break;
         }
     }
 
-    if (free_cache == NULL) {
-        // implements LRU
-        struct cache* min_cache = LRU_cache();
-        free_cache = min_cache;
-    }
-
-    int request_L = request_length(request);
-        
-    free_cache->request = (char *)(Malloc(sizeof(char) * request_L));
-    strncpy(free_cache->buffer, content, content_length);
-    strncpy(free_cache->request, request, request_L);
-    // big-endian ???
-    update_frequency(free_cache);
-    free_cache->valid = 1;
-    free_cache->content_length = content_length;
     
+    /*
+    zui kui huo shou!
+    else {
+        free_cache(empty_cache);
+    }
+    */
+    if (empty_cache == NULL) {
+        struct cache* min_cache = LRU_cache();
+        empty_cache = min_cache;
+
+    }
+    free_cache(empty_cache);
+    init_cache(empty_cache, content_length);
+    int request_L = request_length(request);
+    empty_cache->request = (char *)(Malloc(sizeof(char) * request_L));
+    strncpy(empty_cache->buffer, content, content_length);
+    strncpy(empty_cache->request, request, request_L);
+    // big-endian ???
+    update_frequency(empty_cache);
+    empty_cache->valid = 1;
+    empty_cache->content_length = content_length;
+
+    
+    
+
+    
+
 }
 
 
@@ -156,7 +172,7 @@ int reader(char *request, char *dest)
     // critical session
 
     int length = read_cache(request, dest);
-
+    
     P(&mutex);
     readcnt--;
     if (readcnt == 0) {
@@ -172,5 +188,15 @@ void writer(char *request, char *content, int content_length)
     P(&w);
     write_cache(request, content, content_length);
     V(&w);
+}
+
+void deinit_caches()
+{
+    for (size_t i = 0; i < CACHE_NUM; i++)
+    {
+        /* code */
+        free_cache(&cache_array[i]);
+    }
+    
 }
 
