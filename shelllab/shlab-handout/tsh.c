@@ -641,7 +641,6 @@ void sigchld_handler(int sig)
             Sio_puts(") stopped by signal 20\n");
         }
         if (WIFSIGNALED(status)) {
-            Sio_puts("which one? 2");
             Sio_puts("Job [");
             Sio_putl(getjobpid(jobs, pid)->jid);
             Sio_puts("] (");
